@@ -22,20 +22,49 @@ Type in a game name, pick a mode, and the app digs up a random video for it. You
 ### Requirements
 
 - [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (`docker compose`)
+  - **Windows**: install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) and make sure it is running (check the whale icon in the system tray).
+  - **macOS**: install [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) and make sure it is running.
+  - **Linux**: install [Docker Engine](https://docs.docker.com/engine/install/) and the Compose plugin.
+- [Git](https://git-scm.com/downloads) (or download the repository as a ZIP from GitHub)
 
 ### Run it
+
+Clone the repository (the same on every platform):
 
 ```bash
 git clone https://github.com/VulcanoSoftware/completely-random-yt-video-searcher.git
 cd completely-random-yt-video-searcher
+```
+
+Then start the container. The command depends on your shell.
+
+**Linux / macOS (bash, zsh)**
+
+```bash
 CACHEBUST=$(date +%s) docker compose up --build -d
+```
+
+**Windows (PowerShell)**
+
+```powershell
+$env:CACHEBUST = (Get-Date).Ticks; docker compose up --build -d
+```
+
+**Windows (Command Prompt / cmd.exe)**
+
+```bat
+set CACHEBUST=%RANDOM%%RANDOM% && docker compose up --build -d
 ```
 
 Then open <http://localhost:8000> in your browser.
 
-> `CACHEBUST` makes sure the `yt-dlp` update step is never taken from Docker's build cache, so you always get the newest version.
+> `CACHEBUST` makes sure the `yt-dlp` update step is never taken from Docker's build cache, so you always get the newest version. It is optional: plain `docker compose up --build -d` works on every platform, but then a rebuild may reuse the cached (older) `yt-dlp`.
+>
+> Don't use the bash syntax (`CACHEBUST=$(date +%s) docker compose ...`) in PowerShell or cmd. It is not valid there and fails with *"The term 'CACHEBUST=...' is not recognized"*.
 
 ### Stop it
+
+The same on every platform:
 
 ```bash
 docker compose down
@@ -62,9 +91,11 @@ The page also shows the title, channel, view count, duration and the exact searc
 
 YouTube changes often, and `yt-dlp` has to keep up. If searches start failing, rebuild the image to pull the latest version:
 
-```bash
-CACHEBUST=$(date +%s) docker compose up --build -d
-```
+| Platform | Command |
+| --- | --- |
+| Linux / macOS | `CACHEBUST=$(date +%s) docker compose up --build -d` |
+| Windows (PowerShell) | `$env:CACHEBUST = (Get-Date).Ticks; docker compose up --build -d` |
+| Windows (cmd.exe) | `set CACHEBUST=%RANDOM%%RANDOM% && docker compose up --build -d` |
 
 ## Configuration
 
@@ -114,12 +145,36 @@ Returns the service status and the installed `yt-dlp` version.
 
 You need Python 3.10 or newer.
 
+**Linux / macOS**
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # on Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python app.py
 ```
+
+**Windows (PowerShell)**
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+```
+
+If PowerShell refuses to run the activation script, allow scripts for the current session first: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned`.
+
+**Windows (Command Prompt / cmd.exe)**
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+python app.py
+```
+
+> Gunicorn (used inside the Docker image) does not run on Windows. Running `python app.py` uses Flask's built-in development server, which is fine for personal use.
 
 The app is then available on <http://localhost:8000>.
 
@@ -144,7 +199,9 @@ The app is then available on <http://localhost:8000>.
 
 ## Troubleshooting
 
-- **"Search failed" errors**: `yt-dlp` is probably outdated or YouTube is blocking requests. Rebuild with `CACHEBUST=$(date +%s) docker compose up --build -d`.
+- **"Search failed" errors**: `yt-dlp` is probably outdated or YouTube is blocking requests. Rebuild with the command for your platform (see [Updating `yt-dlp`](#updating-yt-dlp)).
+- **`The term 'CACHEBUST=...' is not recognized` (Windows)**: you used the Linux/macOS command in PowerShell or cmd. Use the Windows command from [Run it](#run-it) instead.
+- **`error during connect` / `cannot connect to the Docker daemon`**: Docker is not running. On Windows and macOS, start Docker Desktop and wait until it reports it is running, then try again.
 - **The embedded player shows an error**: some uploaders disable embedding. Use **Open in new tab** instead.
 - **Port 8000 is already in use**: change the host port in `docker-compose.yml`.
 - **Raw mode doesn't always return 0-view videos**: the modifiers only imitate default file names, so a low view count is likely but not guaranteed.
