@@ -1,0 +1,11 @@
+services:
+  random-yt:
+    build:
+      context: .
+      args:
+        CACHEBUST: ${CACHEBUST:-0}
+    image: completely-random-yt-video-searcher
+    container_name: random-yt
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
