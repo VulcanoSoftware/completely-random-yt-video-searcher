@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Random YT Game Video</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --border: #2a2f3a; --text: #e8eaf0;
+    --muted: #8b93a7; --accent: #ff4d4d; --accent2: #6c7bff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 24px 16px;
+  }
+  main { width: 100%; max-width: 820px; }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.2rem); margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 20px;
+  }
+  label.field { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+  input[type=text] {
+    width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 1rem;
+    border: 1px solid var(--border); background: #0f1218; color: var(--text);
+  }
+  input[type=text]:focus { outline: 2px solid var(--accent2); border-color: transparent; }
+  .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+  .toggle { display: inline-flex; background: #0f1218; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .toggle button {
+    background: none; border: 0; color: var(--muted); padding: 10px 16px;
+    cursor: pointer; font-size: .95rem;
+  }
+  .toggle button.active { background: var(--accent2); color: #fff; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .btn {
+    border: 0; border-radius: 10px; padding: 12px 18px; font-size: 1rem; cursor: pointer;
+    color: #fff; background: var(--accent); font-weight: 600;
+  }
+  .btn.secondary { background: #2a2f3a; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: 10px; }
+  .error { color: #ff8a8a; margin-top: 12px; }
+  #result { display: none; }
+  .meta h2 { font-size: 1.1rem; margin: 0 0 6px; }
+  .meta p { margin: 2px 0; color: var(--muted); font-size: .9rem; }
+  .player { position: relative; width: 100%; aspect-ratio: 16 / 9; margin-top: 16px; border-radius: 10px; overflow: hidden; background: #000; }
+  .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff6; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎲 Random YT Game Video</h1>
+  <p class="sub">Een compleet willekeurige YouTube-video van jouw game, zonder algoritme.</p>
+
+  <section class="card">
+    <label class="field" for="game">Gamenaam</label>
+    <input id="game" type="text" placeholder="bijv. Minecraft, Euro Truck Simulator 2…" autocomplete="off">
+
+    <div class="row">
+      <div class="toggle" id="modeToggle" role="group" aria-label="Modus">
+        <button type="button" data-mode="normal" class="active">Normaal</button>
+        <button type="button" data-mode="raw">Rauw / 0-views</button>
+      </div>
+    </div>
+    <p class="hint" id="modeHint">Normaal: voegt willekeurige letter-/cijfercombinaties toe aan de zoekopdracht.</p>
+
+    <div class="actions">
+      <button class="btn" id="searchBtn">Zoek willekeurige video</button>
+    </div>
+    <div class="error" id="error"></div>
+  </section>
+
+  <section class="card" id="result">
+    <div class="meta">
+      <h2 id="title"></h2>
+      <p id="channel"></p>
+      <p id="details"></p>
+      <p id="query"></p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="playBtn">▶ Speel hier af</button>
+      <button class="btn secondary" id="openBtn">↗ Open in nieuw tabblad</button>
+      <button class="btn secondary" id="againBtn">🎲 Nog een</button>
+    </div>
+    <div class="player" id="player" hidden></div>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let mode = "normal";
+  let current = null;
+
+  const hints = {
+    normal: "Normaal: voegt willekeurige letter-/cijfercombinaties toe aan de zoekopdracht.",
+    raw: "Rauw: zoekt op standaard bestandsnamen van opnamesoftware (IMG_, OBS, VID_, replay, jaartallen) voor onbekende video's.",
+  };
+
+  document.querySelectorAll("#modeToggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      mode = btn.dataset.mode;
+      document.querySelectorAll("#modeToggle button").forEach((b) => b.classList.toggle("active", b === btn));
+      $("modeHint").textContent = hints[mode];
+    });
+  });
+
+  function fmtDuration(s) {
+    if (!s) return "";
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(sec).padStart(2, "0");
+  }
+
+  async function search() {
+    const game = $("game").value.trim();
+    $("error").textContent = "";
+    if (!game) { $("error").textContent = "Vul eerst een gamenaam in."; return; }
+
+    const btn = $("searchBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Zoeken…';
+    try {
+      const res = await fetch(`/api/random?game=${encodeURIComponent(game)}&mode=${mode}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Onbekende fout");
+      current = data;
+      showResult(data);
+    } catch (e) {
+      $("error").textContent = e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Zoek willekeurige video";
+    }
+  }
+
+  function showResult(v) {
+    $("result").style.display = "block";
+    $("title").textContent = v.title || "(zonder titel)";
+    $("channel").textContent = v.channel ? "Kanaal: " + v.channel : "";
+    const parts = [];
+    if (typeof v.views === "number") parts.push(v.views.toLocaleString("nl-BE") + " weergaven");
+    if (v.duration) parts.push(fmtDuration(v.duration));
+    $("details").textContent = parts.join(" · ");
+    $("query").textContent = "Zoekopdracht: " + v.query;
+    $("player").hidden = true;
+    $("player").innerHTML = "";
+    $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function play() {
+    if (!current) return;
+    const p = $("player");
+    p.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(current.id)}?autoplay=1"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+      allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    p.hidden = false;
+  }
+
+  $("searchBtn").addEventListener("click", search);
+  $("againBtn").addEventListener("click", search);
+  $("game").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+  $("playBtn").addEventListener("click", play);
+  $("openBtn").addEventListener("click", () => current && window.open(current.url, "_blank", "noopener"));
+</script>
+</body>
+</html>
